@@ -32,10 +32,14 @@ In this example code, the wrist sensor accelerometer data dataset_1 sitting acti
 '''
 def data_visulization():
     # read dataset file
-    df = pd.read_csv('dataset/dataset_1.txt', sep=',', header=None)
+    df = pd.read_csv('dataset_1.txt', sep=',', header=None)
     df_sitting = df[df[24] == 1].values
     # In this example code, only accelerometer 1 data (column 1 to 3) is used
-    plt.plot(df_sitting[:, 0:3])
+    print('Raw Acceleration Data of the chest from time 500-2500:')
+    plt.plot(df_sitting[500:2500 , 6:9])
+    plt.show()
+    print('Raw Gyroscopic Data of the chest from time 500-2500:')
+    plt.plot(df_sitting[500:2500 , 9:12])
     plt.show()
 
 '''
@@ -44,13 +48,17 @@ calibration, sensor errors, errors in sensor placement, or noisy environments. W
 to smooth data. In this example code, Butterworth low-pass filter is applied. 
 '''
 def noise_removing():
-    df = pd.read_csv('dataset/dataset_1.txt', sep=',', header=None)
+    df = pd.read_csv('dataset_1.txt', sep=',', header=None)
     # Butterworth low-pass filter. You could try different parameters and other filters. 
     b, a = signal.butter(4, 0.04, 'low', analog=False)
-    df_sitting = df[df[24] == 1].values
-    for i in range(3):
-        df_sitting[:,i] = signal.lfilter(b, a, df_sitting[:, i])
-    plt.plot(df_sitting[15000:20000, 0:3])
+    df_filtered = df[df[24] == 1].values
+    for i in range(6,12):
+        df_filtered[:,i] = signal.lfilter(b, a, df_sitting[:, i])
+    print('Filtered Acceleration Data of the chest from time 500-2500:')
+    plt.plot(df_filtered[500:2500 , 6:9])
+    plt.show()
+    print('Filtered Gyroscopic Data of the chest from time 500-2500:')
+    plt.plot(df_filtered[500:2500 , 9:12])
     plt.show()
 
 
@@ -65,7 +73,7 @@ def feature_engineering_example():
     testing = np.empty(shape=(0, 10))
     # deal with each dataset file
     for i in range(19):
-        df = pd.read_csv('dataset/dataset_' + str(i + 1) + '.txt', sep=',', header=None)
+        df = pd.read_csv('dataset_' + str(i + 1) + '.txt', sep=',', header=None)
         print('deal with dataset ' + str(i + 1))
         for c in range(1, 14):
             activity_data = df[df[24] == c].values
@@ -187,7 +195,7 @@ def model_training_and_evaluation_example():
 
 if __name__ == '__main__':
     
-    # data_visulization()
-    # noise_removing()
+    data_visulization()
+    noise_removing()
     # feature_engineering_example()
-    model_training_and_evaluation_example()
+    #model_training_and_evaluation_example()
