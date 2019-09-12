@@ -30,36 +30,35 @@ from sklearn.model_selection import GridSearchCV
 At first, we should explore the raw time-series sensor data. We could draw line plot of sensor signals.
 In this example code, the wrist sensor accelerometer data dataset_1 sitting activity is visualized.   
 '''
-def data_visulization():
+def data_visulization(file,pos,firstAc, lastAc, firstGy, lastGy):
     # read dataset file
-    df = pd.read_csv('dataset_1.txt', sep=',', header=None)
-    df_sitting = df[df[24] == 1].values
-    # In this example code, only accelerometer 1 data (column 1 to 3) is used
-    print('Raw Acceleration Data of the chest from time 500-2500:')
-    plt.plot(df_sitting[500:2500 , 6:9])
-    plt.show()
-    print('Raw Gyroscopic Data of the chest from time 500-2500:')
-    plt.plot(df_sitting[500:2500 , 9:12])
-    plt.show()
+    df =  reader(file)
+    df_sitting = df[df[24] == pos].values
+    graph,axes = plt.subplots(2, 2,figsize=(20,15))
+    axes[0][0].plot(shower(df_sitting,file,pos,500,2500,firstAc,lastAc,'Raw Acceleration',axes[0][0]))
+    axes[0][1].plot(shower(df_sitting,file,pos,500,2500,firstGy,lastGy,'Raw Gyroscopic',axes[0][1]))
+    if(firstAc<=firstGy):
+        df_filtered = noise_removing(df,1,firstAc,lastGy)
+    else:
+        df_filtered = noise_removing(df,1,firstGy,lastAc)
+        
+    axes[1][0].plot(shower(df_filtered,file,pos,500,2500,firstAc,lastAc,'Filtered Acceleration',axes[1][0]) )
+    axes[1][1].plot(shower(df_filtered,file,pos,500,2500,firstGy,lastGy,'Filtered Gyroscopic',axes[1][1])   )
+    graph.show()
 
 '''
 For raw sensor data, it usually contains noise that arises from different sources, such as sensor mis-
 calibration, sensor errors, errors in sensor placement, or noisy environments. We could apply filter to remove noise of sensor data
 to smooth data. In this example code, Butterworth low-pass filter is applied. 
 '''
-def noise_removing():
-    df = pd.read_csv('dataset_1.txt', sep=',', header=None)
+def noise_removing(df,label,sectStart,sectEnd):
     # Butterworth low-pass filter. You could try different parameters and other filters. 
     b, a = signal.butter(4, 0.04, 'low', analog=False)
-    df_filtered = df[df[24] == 1].values
-    for i in range(6,12):
-        df_filtered[:,i] = signal.lfilter(b, a, df_sitting[:, i])
-    print('Filtered Acceleration Data of the chest from time 500-2500:')
-    plt.plot(df_filtered[500:2500 , 6:9])
-    plt.show()
-    print('Filtered Gyroscopic Data of the chest from time 500-2500:')
-    plt.plot(df_filtered[500:2500 , 9:12])
-    plt.show()
+    df_filtered = df[df[24] == label].values
+    for i in range(sectStart,sectEnd):
+        df_filtered[:,i] = signal.lfilter(b, a, df_filtered[:, i])
+    return df_filtered
+    
 
 
 '''
@@ -73,14 +72,11 @@ def feature_engineering_example():
     testing = np.empty(shape=(0, 10))
     # deal with each dataset file
     for i in range(19):
-        df = pd.read_csv('dataset_' + str(i + 1) + '.txt', sep=',', header=None)
+        df = reader(i+1)
         print('deal with dataset ' + str(i + 1))
         for c in range(1, 14):
             activity_data = df[df[24] == c].values
-            b, a = signal.butter(4, 0.04, 'low', analog=False)
-            for j in range(24):
-                activity_data[:, j] = signal.lfilter(b, a, activity_data[:, j])
-            
+            activity_data = noise_removing(df,c,6,12)
             datat_len = len(activity_data)
             training_len = math.floor(datat_len * 0.8)
             training_data = activity_data[:training_len, :]
@@ -102,10 +98,10 @@ def feature_engineering_example():
                 # a period of time. Finally we get 9 features and 1 label to construct feature dataset. You may consider all sensors' data and extract more
 
                 feature_sample = []
-                for i in range(3):
+                for i in range(6,9):
                     feature_sample.append(np.min(sample_data[:, i]))
                     feature_sample.append(np.max(sample_data[:, i]))
-                    feature_sample.append(np.mean(sample_data[:, i]))
+                    feature_sample.append(np.average(sample_data[:, i]))
                 feature_sample.append(sample_data[0, -1])
                 feature_sample = np.array([feature_sample])
                 training = np.concatenate((training, feature_sample), axis=0)
@@ -117,7 +113,7 @@ def feature_engineering_example():
                     sample_data = testing_data[1000*s:, :]
 
                 feature_sample = []
-                for i in range(3):
+                for i in range(6,9):
                     feature_sample.append(np.min(sample_data[:, i]))
                     feature_sample.append(np.max(sample_data[:, i]))
                     feature_sample.append(np.mean(sample_data[:, i]))
@@ -157,7 +153,7 @@ def model_training_and_evaluation_example():
     X_test = scaler.transform(X_test)
 
     # Build KNN classifier, in this example code
-    knn = KNeighborsClassifier(n_neighbors=3)
+    knn = KNeighborsClassifier(n_neighbors=4)
     knn.fit(X_train, y_train)
 
     # Evaluation. when we train a machine learning model on training set, we should evaluate its performance on testing set.
@@ -193,9 +189,38 @@ def model_training_and_evaluation_example():
 #                    scoring=score)
 # clf.fit(x_train, y_train)
 
+
+def reader(i):
+    return pd.read_csv('dataset_' + str(i) + '.txt', sep=',', header=None)
+
+def shower(data,person, pos, tStart, tEnd, sectStart, sectEnd,dataType,plot):    
+    activity =  {
+        1: "Sitting",
+        2: "Lying", 
+        3: "Standing", 
+        4: "Washing Dishes", 
+        5: "Vacuuming", 
+        6: "Sweeping", 
+        7: "Walking", 
+        8: "Ascending Stairs",
+        9: "Descending stairs", 
+        10: "Running on a Treadmill", 
+        11: "Riding on a 50W Ergometer", 
+        12: "Riding on a 100W Ergometer", 
+        13: "Jumping Rope",    
+    }.get(pos) 
+    plot.set_title('%s Data of person %ds Chest while %s from time %d-%d:'%(dataType,person,activity,tStart,tEnd))
+    return data[tStart:tEnd , sectStart:sectEnd]
+    
+
+
+
 if __name__ == '__main__':
     
-    data_visulization()
-    noise_removing()
-    # feature_engineering_example()
+    data_visulization(1,1,6,9,9,12)
+    data_visulization(1,2,6,9,9,12)
+    data_visulization(2,1,6,9,9,12)
+    data_visulization(2,2,6,9,9,12)
+    
+    #feature_engineering_example()
     #model_training_and_evaluation_example()
