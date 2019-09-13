@@ -38,9 +38,9 @@ def data_visulization(file,pos,firstAc, lastAc, firstGy, lastGy):
     axes[0][0].plot(shower(df_sitting,file,pos,500,2500,firstAc,lastAc,'Raw Acceleration',axes[0][0]))
     axes[0][1].plot(shower(df_sitting,file,pos,500,2500,firstGy,lastGy,'Raw Gyroscopic',axes[0][1]))
     if(firstAc<=firstGy):
-        df_filtered = noise_removing(df,1,firstAc,lastGy)
+        df_filtered = noise_removing(df,pos,firstAc,lastGy)
     else:
-        df_filtered = noise_removing(df,1,firstGy,lastAc)
+        df_filtered = noise_removing(df,pos,firstGy,lastAc)
         
     axes[1][0].plot(shower(df_filtered,file,pos,500,2500,firstAc,lastAc,'Filtered Acceleration',axes[1][0]) )
     axes[1][1].plot(shower(df_filtered,file,pos,500,2500,firstGy,lastGy,'Filtered Gyroscopic',axes[1][1])   )
@@ -88,29 +88,22 @@ def feature_engineering_example():
             # get more feature samples.
             training_sample_number = training_len // 1000 + 1
             testing_sample_number = (datat_len - training_len) // 1000 + 1
-
-            for s in range(training_sample_number):
-                if s < training_sample_number - 1:
-                    sample_data = training_data[1000*s:1000*(s + 1), :]
-                else:
-                    sample_data = training_data[1000*s:, :]
-                # in this example code, only three accelerometer data in wrist sensor is used to extract three simple features: min, max, and mean value in
-                # a period of time. Finally we get 9 features and 1 label to construct feature dataset. You may consider all sensors' data and extract more
-
-                feature_sample = []
-                for i in range(6,9):
-                    feature_sample.append(np.min(sample_data[:, i]))
-                    feature_sample.append(np.max(sample_data[:, i]))
-                    feature_sample.append(np.average(sample_data[:, i]))
-                feature_sample.append(sample_data[0, -1])
-                feature_sample = np.array([feature_sample])
-                training = np.concatenate((training, feature_sample), axis=0)
             
-            for s in range(testing_sample_number):
-                if s < training_sample_number - 1:
-                    sample_data = testing_data[1000*s:1000*(s + 1), :]
+            training = np.concatenate((training, dataCreater(training_sample_number,training_data,training_sample_number)), axis=0)
+            testing = np.concatenate((testing, dataCreater(testing_sample_number,testing_data,training_sample_number)), axis=0)
+            
+
+    df_training = pd.DataFrame(training)
+    df_testing = pd.DataFrame(testing)
+    df_training.to_csv('training_data.csv', index=None, header=None)
+    df_testing.to_csv('testing_data.csv', index=None, header=None)
+    
+def dataCreater(sampleSize, data, trainingNumber):
+    for s in range(sampleSize):
+                if s < trainingNumber - 1:
+                    sample_data = data[1000*s:1000*(s + 1), :]
                 else:
-                    sample_data = testing_data[1000*s:, :]
+                    sample_data = data[1000*s:, :]
 
                 feature_sample = []
                 for i in range(6,9):
@@ -119,12 +112,8 @@ def feature_engineering_example():
                     feature_sample.append(np.mean(sample_data[:, i]))
                 feature_sample.append(sample_data[0, -1])
                 feature_sample = np.array([feature_sample])
-                testing = np.concatenate((testing, feature_sample), axis=0)
-
-    df_training = pd.DataFrame(training)
-    df_testing = pd.DataFrame(testing)
-    df_training.to_csv('training_data.csv', index=None, header=None)
-    df_testing.to_csv('testing_data.csv', index=None, header=None)
+                
+                return feature_sample
 
 '''
 When we have training and testing feature set, we could build machine learning models to recognize human activities.
@@ -153,7 +142,7 @@ def model_training_and_evaluation_example():
     X_test = scaler.transform(X_test)
 
     # Build KNN classifier, in this example code
-    knn = KNeighborsClassifier(n_neighbors=4)
+    knn = KNeighborsClassifier(n_neighbors=3)
     knn.fit(X_train, y_train)
 
     # Evaluation. when we train a machine learning model on training set, we should evaluate its performance on testing set.
@@ -217,10 +206,8 @@ def shower(data,person, pos, tStart, tEnd, sectStart, sectEnd,dataType,plot):
 
 if __name__ == '__main__':
     
-    data_visulization(1,1,6,9,9,12)
-    data_visulization(1,2,6,9,9,12)
-    data_visulization(2,1,6,9,9,12)
-    data_visulization(2,2,6,9,9,12)
+    #data_visulization(1,1,6,9,9,12)
+    #data_visulization(2,2,6,9,9,12)
     
     #feature_engineering_example()
-    #model_training_and_evaluation_example()
+    model_training_and_evaluation_example()
