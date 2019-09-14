@@ -1,13 +1,16 @@
 import numpy as np 
 import pandas as pd 
+import scipy as sci
 from scipy import signal
 import matplotlib.pyplot as plt 
 import math
 from sklearn import preprocessing
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import make_scorer, accuracy_score, confusion_matrix
+from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB
 
 #Commented by: James Xi Zheng 12/Aug/2019
 #please create functions to do the following jobs
@@ -89,8 +92,6 @@ def feature_engineering_example(features):
             training_sample_number = training_len // 1000 + 1
             testing_sample_number = (datat_len - training_len) // 1000 + 1
             
-            #training = dataCreater(training_sample_number,training_data,training_sample_number,training)
-            #testing = dataCreater(testing_sample_number,testing_data,training_sample_number,testing)
                           
             for s in range(training_sample_number):   
                 training = np.concatenate((training, dataCreater(training_data,training_sample_number,s,6,9,features)), axis=0)
@@ -103,7 +104,7 @@ def feature_engineering_example(features):
     df_training.to_csv('training_data.csv', index=None, header=None)
     df_testing.to_csv('testing_data.csv', index=None, header=None)
     model_training_and_evaluation_example(3,features)
-    #model_training_and_evaluation_example(4,features)
+    
     
 def dataCreater(data, trainingNumber,s,rangeStart, rangeEnd,features):
                 if s < trainingNumber - 1:
@@ -121,6 +122,8 @@ def dataCreater(data, trainingNumber,s,rangeStart, rangeEnd,features):
                         feature_sample.append(np.average(sample_data[:, i]))
                     if features >= 5:
                         feature_sample.append(np.std(sample_data[:,i]))
+                    if features >= 6:
+                        feature_sample.append(sci.stats.kurtosis(sample_data[:,i]))
                 feature_sample.append(sample_data[0, -1])
                 feature_sample = np.array([feature_sample])  
                 return feature_sample
@@ -131,6 +134,7 @@ When we have training and testing feature set, we could build machine learning m
 Please create new functions to fit your features and try other models.
 '''
 def model_training_and_evaluation_example(neighbours,features):
+    info = np.empty(shape = (0,5))
     df_training = pd.read_csv('training_data.csv', header=None)
     df_testing = pd.read_csv('testing_data.csv', header=None)
     
@@ -145,16 +149,55 @@ def model_training_and_evaluation_example(neighbours,features):
     X_train = scaler.transform(X_train)
     X_test = scaler.transform(X_test)
 
+    #Build a Decision tree machine learning algorithm
+    firstCol = ["" , "Accuracy", "precision", "recall", "f1"]
+    firstCol = np.array([firstCol])
+    info = np.concatenate((info, firstCol),axis = 0)
+    info = np.concatenate((info,treeBuilderTester(X_train, Y_train,X_test,Y_test)),axis = 0)
+    
+    #Build and test a Gaussian Naive Bayes learning algorithm
+    info = np.concatenate((info, gaussianBuilderTester(X_train, Y_train,X_test,Y_test)),axis = 0)
+    
     # Build KNN classifier, in this example code
-    KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours)
+    info = np.concatenate((info, KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours-1)), axis = 0)
+    info = np.concatenate((info,KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours)),axis = 0)
+    info = np.concatenate((info, KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours+1)), axis = 0)
     
-    
-    # Another machine learning model: svm. In this example code, we use gridsearch to find the optimial classifier
+     # Another machine learning model: svm. In this example code, we use gridsearch to find the optimial classifier
     # It will take a long time to find the optimal classifier.
     # the accuracy for SVM classifier with default parameters is 0.71, 
     # which is worse than KNN. The reason may be parameters of svm classifier are not optimal.  
     # Another reason may be we only use 9 features and they are not enough to build a good svm classifier. \
-    SVCBuilderTester(X_train,Y_train,X_test,Y_test)
+    info = np.concatenate((info, SVCBuilderTester(X_train,Y_train,X_test,Y_test)),axis = 0)
+    infoData = pd.DataFrame(info)
+    infoData.to_csv('info_data.csv', index=None, header=None)
+    print("done")
+def treeBuilderTester (X_train,Y_train,X_test,Y_test):
+    
+    
+    
+    tree = DecisionTreeClassifier()
+    tree.fit(X_train,Y_train)
+    prediction = tree.predict(X_test)
+    #print('Accuracy of Decision Tree: ', accuracy_score(Y_test, prediction))
+    #print('Precision of Decision Tree: ', precision_score(Y_test, prediction,average='macro'))
+    #print('Recall of Decision Tree: ', recall_score(Y_test, prediction,average='macro'))
+    #print('F1 of Decision Tree: ', f1_score(Y_test, prediction,average='macro'))
+    #print(confusion_matrix(Y_test, prediction))
+    return arrayBuilder(Y_test, prediction, "Tree")
+    
+    
+def gaussianBuilderTester (X_train,Y_train,X_test,Y_test):
+    
+    gauss = GaussianNB()
+    gauss.fit(X_train,Y_train)
+    prediction = gauss.predict(X_test)
+    #print('Accuracy of Gaussian: ', accuracy_score(Y_test, prediction))
+    #print('Precision of Gaussian: ', precision_score(Y_test, prediction,average='macro'))
+    #print('Recall of Gaussian: ', recall_score(Y_test, prediction,average='macro'))
+    #print('F1 of Gaussian: ', f1_score(Y_test, prediction,average='macro'))
+    #print(confusion_matrix(Y_test, prediction))
+    return arrayBuilder(Y_test,prediction, "Gauss")
     
 def KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours):
     knn = KNeighborsClassifier(n_neighbors=neighbours)
@@ -164,9 +207,14 @@ def KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours):
     # We could evaluate the model by different metrics. Firstly, we could calculate the classification accuracy. In this example
     # code, when n_neighbors is set to 4, the accuracy achieves 0.757.
     y_pred = knn.predict(X_test)
-    print('Accuracy: ', accuracy_score(Y_test, y_pred))
+    
+    #print('Accuracy of KNN ',neighbours,' neighbours: ', accuracy_score(Y_test, y_pred))
+    #print('Precision of KNN: ', precision_score(Y_test, y_pred,average='macro'))
+    #print('Recall of KNN: ', recall_score(Y_test, y_pred,average='macro'))
+    #print('F1 of KNN: ', f1_score(Y_test, y_pred,average='macro'))
     # We could use confusion matrix to view the classification for each activity.
-    print(confusion_matrix(Y_test, y_pred))
+    #print(confusion_matrix(Y_test, y_pred))
+    return arrayBuilder(Y_test,y_pred, "KNN")
     
 def SVCBuilderTester(X_train,Y_train,X_test,Y_test):
     tuned_parameters = [{'kernel': ['rbf'], 'gamma': [1e-1,1e-2, 1e-3, 1e-4],
@@ -179,9 +227,23 @@ def SVCBuilderTester(X_train,Y_train,X_test,Y_test):
     print('best clf:', clf)
     clf.fit(X_train, Y_train)
     Y_pred = clf.predict(X_test)
-    print('Accuracy: ', accuracy_score(Y_test, Y_pred))
-    print(confusion_matrix(Y_test, Y_pred))
+    print('Accuracy of SVC: ', accuracy_score(Y_test, Y_pred))
+    #print('Precision of SVC: ', precision_score(Y_test, Y_pred, average='macro'))
+    #print('Recall of SVC: ', recall_score(Y_test, Y_pred, average='macro'))
+    #print('F1 of SVC: ', f1_score(Y_test, Y_pred, average='macro'))
+    #print(confusion_matrix(Y_test, Y_pred))
+    return arrayBuilder(Y_test,Y_pred, "SVC")
 
+def arrayBuilder(Y_test,prediction, name):
+    info = []
+    info.append(name)
+    info.append(accuracy_score(Y_test, prediction))
+    info.append(precision_score(Y_test, prediction,average='macro'))
+    info.append(recall_score(Y_test, prediction,average='macro'))
+    info.append(f1_score(Y_test, prediction,average='macro'))
+    info = np.array([info])
+    print("done")
+    return info
 
 def reader(i):
     return pd.read_csv('dataset_' + str(i) + '.txt', sep=',', header=None)
@@ -214,5 +276,9 @@ if __name__ == '__main__':
     #data_visulization(2,2,6,9,9,12)
     
     feature_engineering_example(4)
-    #model_training_and_evaluation_example(4,5)
+    #feature_engineering_example(3)
+    #feature_engineering_example(4)
+    #feature_engineering_example(5)
+    #feature_engineering_example(6)
+    #model_training_and_evaluation_example(3,2)
     #model_training_and_evaluation_example(4)
