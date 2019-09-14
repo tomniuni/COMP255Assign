@@ -67,9 +67,9 @@ machine learning models.
 
 Please create new functions to implement your own feature engineering. The function should output training and testing dataset.
 '''
-def feature_engineering_example():
-    training = np.empty(shape=(0, 10))
-    testing = np.empty(shape=(0, 10))
+def feature_engineering_example(features):
+    training = np.empty(shape=(0, features*3 +1))
+    testing = np.empty(shape=(0, features *3 +1))
     # deal with each dataset file
     for i in range(19):
         df = reader(i+1)
@@ -89,30 +89,40 @@ def feature_engineering_example():
             training_sample_number = training_len // 1000 + 1
             testing_sample_number = (datat_len - training_len) // 1000 + 1
             
-            training = np.concatenate((training, dataCreater(training_sample_number,training_data,training_sample_number)), axis=0)
-            testing = np.concatenate((testing, dataCreater(testing_sample_number,testing_data,training_sample_number)), axis=0)
+            #training = dataCreater(training_sample_number,training_data,training_sample_number,training)
+            #testing = dataCreater(testing_sample_number,testing_data,training_sample_number,testing)
+                          
+            for s in range(training_sample_number):   
+                training = np.concatenate((training, dataCreater(training_data,training_sample_number,s,6,9,features)), axis=0)
             
+            for s in range(testing_sample_number): 
+                testing = np.concatenate((testing, dataCreater(testing_data,training_sample_number,s,6,9,features)), axis=0)
 
     df_training = pd.DataFrame(training)
     df_testing = pd.DataFrame(testing)
     df_training.to_csv('training_data.csv', index=None, header=None)
     df_testing.to_csv('testing_data.csv', index=None, header=None)
+    model_training_and_evaluation_example(3,features)
+    #model_training_and_evaluation_example(4,features)
     
-def dataCreater(sampleSize, data, trainingNumber):
-    for s in range(sampleSize):
+def dataCreater(data, trainingNumber,s,rangeStart, rangeEnd,features):
                 if s < trainingNumber - 1:
                     sample_data = data[1000*s:1000*(s + 1), :]
                 else:
                     sample_data = data[1000*s:, :]
 
                 feature_sample = []
-                for i in range(6,9):
+                for i in range(rangeStart,rangeEnd):
                     feature_sample.append(np.min(sample_data[:, i]))
                     feature_sample.append(np.max(sample_data[:, i]))
-                    feature_sample.append(np.mean(sample_data[:, i]))
+                    if features >= 3:
+                        feature_sample.append(np.mean(sample_data[:, i]))                    
+                    if features >= 4:
+                        feature_sample.append(np.average(sample_data[:, i]))
+                    if features >= 5:
+                        feature_sample.append(np.std(sample_data[:,i]))
                 feature_sample.append(sample_data[0, -1])
-                feature_sample = np.array([feature_sample])
-                
+                feature_sample = np.array([feature_sample])  
                 return feature_sample
 
 '''
@@ -120,20 +130,14 @@ When we have training and testing feature set, we could build machine learning m
 
 Please create new functions to fit your features and try other models.
 '''
-def model_training_and_evaluation_example():
+def model_training_and_evaluation_example(neighbours,features):
     df_training = pd.read_csv('training_data.csv', header=None)
     df_testing = pd.read_csv('testing_data.csv', header=None)
-
-    y_train = df_training[9].values
-    # Labels should start from 0 in sklearn
-    y_train = y_train - 1
-    df_training = df_training.drop([9], axis=1)
-    X_train = df_training.values
-
-    y_test = df_testing[9].values
-    y_test = y_test - 1
-    df_testing = df_testing.drop([9], axis=1)
-    X_test = df_testing.values
+    
+    X_test = df_testing.drop([features*3], axis=1).values
+    X_train = df_training.drop([features*3], axis=1).values
+    Y_train = df_training[features*3].values -1
+    Y_test = df_testing[features*3].values -1
     
     # Feature normalization for improving the performance of machine learning models. In this example code, 
     # StandardScaler is used to scale original feature to be centered around zero. You could try other normalization methods.
@@ -142,41 +146,41 @@ def model_training_and_evaluation_example():
     X_test = scaler.transform(X_test)
 
     # Build KNN classifier, in this example code
-    knn = KNeighborsClassifier(n_neighbors=3)
-    knn.fit(X_train, y_train)
+    KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours)
+    
+    
+    # Another machine learning model: svm. In this example code, we use gridsearch to find the optimial classifier
+    # It will take a long time to find the optimal classifier.
+    # the accuracy for SVM classifier with default parameters is 0.71, 
+    # which is worse than KNN. The reason may be parameters of svm classifier are not optimal.  
+    # Another reason may be we only use 9 features and they are not enough to build a good svm classifier. \
+    SVCBuilderTester(X_train,Y_train,X_test,Y_test)
+    
+def KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours):
+    knn = KNeighborsClassifier(n_neighbors=neighbours)
+    knn.fit(X_train, Y_train)
 
     # Evaluation. when we train a machine learning model on training set, we should evaluate its performance on testing set.
     # We could evaluate the model by different metrics. Firstly, we could calculate the classification accuracy. In this example
     # code, when n_neighbors is set to 4, the accuracy achieves 0.757.
     y_pred = knn.predict(X_test)
-    print('Accuracy: ', accuracy_score(y_test, y_pred))
+    print('Accuracy: ', accuracy_score(Y_test, y_pred))
     # We could use confusion matrix to view the classification for each activity.
-    print(confusion_matrix(y_test, y_pred))
+    print(confusion_matrix(Y_test, y_pred))
     
-
-    # Another machine learning model: svm. In this example code, we use gridsearch to find the optimial classifier
-    # It will take a long time to find the optimal classifier.
-    # the accuracy for SVM classifier with default parameters is 0.71, 
-    # which is worse than KNN. The reason may be parameters of svm classifier are not optimal.  
-    # Another reason may be we only use 9 features and they are not enough to build a good svm classifier. 
+def SVCBuilderTester(X_train,Y_train,X_test,Y_test):
     tuned_parameters = [{'kernel': ['rbf'], 'gamma': [1e-1,1e-2, 1e-3, 1e-4],
                      'C': [1e-3, 1e-2, 1e-1, 1, 10, 100, 100]},
                     {'kernel': ['linear'], 'C': [1e-3, 1e-2, 1e-1, 1, 10, 100]}]
     acc_scorer = make_scorer(accuracy_score)
     grid_obj  = GridSearchCV(SVC(), tuned_parameters, cv=10, scoring=acc_scorer)
-    grid_obj  = grid_obj .fit(X_train, y_train)
+    grid_obj  = grid_obj .fit(X_train, Y_train)
     clf = grid_obj.best_estimator_
     print('best clf:', clf)
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-    print('Accuracy: ', accuracy_score(y_test, y_pred))
-    print(confusion_matrix(y_test, y_pred))
-
-# print("# Tuning hyper-parameters for %s" % score)
-# print()
-# clf = GridSearchCV(SVC(), tuned_parameters, cv=10,
-#                    scoring=score)
-# clf.fit(x_train, y_train)
+    clf.fit(X_train, Y_train)
+    Y_pred = clf.predict(X_test)
+    print('Accuracy: ', accuracy_score(Y_test, Y_pred))
+    print(confusion_matrix(Y_test, Y_pred))
 
 
 def reader(i):
@@ -209,5 +213,6 @@ if __name__ == '__main__':
     #data_visulization(1,1,6,9,9,12)
     #data_visulization(2,2,6,9,9,12)
     
-    #feature_engineering_example()
-    model_training_and_evaluation_example()
+    feature_engineering_example(4)
+    #model_training_and_evaluation_example(4,5)
+    #model_training_and_evaluation_example(4)
