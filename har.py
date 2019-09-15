@@ -29,11 +29,9 @@ from sklearn.naive_bayes import GaussianNB
 #document your progress and think critically what are missing from such IoT application and what are missing to move such IoT application from PoC (proof of concept) to solve real-world life
 #think with which components added, what kind of real-world problems can be solved by it -> this shall be discussed in the conclusion part in the document
 
-'''
-At first, we should explore the raw time-series sensor data. We could draw line plot of sensor signals.
-In this example code, the wrist sensor accelerometer data dataset_1 sitting activity is visualized.   
-'''
+
 def data_visulization(file,pos,firstAc, lastAc, firstGy, lastGy):
+    
     # read dataset file
     df =  reader(file)
     df_sitting = df[df[24] == pos].values
@@ -49,37 +47,30 @@ def data_visulization(file,pos,firstAc, lastAc, firstGy, lastGy):
     axes[1][1].plot(shower(df_filtered,file,pos,500,2500,firstGy,lastGy,'Filtered Gyroscopic',axes[1][1])   )
     graph.show()
 
-'''
-For raw sensor data, it usually contains noise that arises from different sources, such as sensor mis-
-calibration, sensor errors, errors in sensor placement, or noisy environments. We could apply filter to remove noise of sensor data
-to smooth data. In this example code, Butterworth low-pass filter is applied. 
-'''
+
 def noise_removing(df,label,sectStart,sectEnd):
-    # Butterworth low-pass filter. You could try different parameters and other filters. 
+    
+    # Butterworth low-pass filter. 
     b, a = signal.butter(4, 0.04, 'low', analog=False)
-    df_filtered = df[df[24] == label].values
+    df_filtered = df[df[24] == label].values #gets the selected activity
     for i in range(sectStart,sectEnd):
         df_filtered[:,i] = signal.lfilter(b, a, df_filtered[:, i])
     return df_filtered
     
 
 
-'''
-To build a human activity recognition system, we need to extract features from raw data and create feature dataset for training 
-machine learning models.
 
-Please create new functions to implement your own feature engineering. The function should output training and testing dataset.
-'''
-def feature_engineering_example(features):
-    training = np.empty(shape=(0, features*3 +1))
+def DatasetCreation(features):
+    
+    training = np.empty(shape=(0, features*3 +1)) #create a training and data set and make it a flexible amount of features
     testing = np.empty(shape=(0, features *3 +1))
     # deal with each dataset file
     for i in range(19):
-        df = reader(i+1)
+        df = reader(i+1) #read all of the datasets
         print('deal with dataset ' + str(i + 1))
         for c in range(1, 14):
             activity_data = df[df[24] == c].values
-            activity_data = noise_removing(df,c,6,12)
+            activity_data = noise_removing(df,c,6,12) #removing the noise from the sample
             datat_len = len(activity_data)
             training_len = math.floor(datat_len * 0.8)
             training_data = activity_data[:training_len, :]
@@ -100,19 +91,22 @@ def feature_engineering_example(features):
                 testing = np.concatenate((testing, dataCreater(testing_data,training_sample_number,s,6,9,features)), axis=0)
 
     df_training = pd.DataFrame(training)
-    df_testing = pd.DataFrame(testing)
+    df_testing = pd.DataFrame(testing) #creating the testing and training data CSVs
     df_training.to_csv('training_data.csv', index=None, header=None)
     df_testing.to_csv('testing_data.csv', index=None, header=None)
-    model_training_and_evaluation_example(3,features)
+    #moving onto the model testing because then the feature paramter is carried over
+    ModelTestingAndEval(3,features)
     
     
 def dataCreater(data, trainingNumber,s,rangeStart, rangeEnd,features):
+    
                 if s < trainingNumber - 1:
                     sample_data = data[1000*s:1000*(s + 1), :]
                 else:
                     sample_data = data[1000*s:, :]
 
                 feature_sample = []
+                #this adds the selected amount of features to the testing and training data
                 for i in range(rangeStart,rangeEnd):
                     feature_sample.append(np.min(sample_data[:, i]))
                     feature_sample.append(np.max(sample_data[:, i]))
@@ -128,12 +122,9 @@ def dataCreater(data, trainingNumber,s,rangeStart, rangeEnd,features):
                 feature_sample = np.array([feature_sample])  
                 return feature_sample
 
-'''
-When we have training and testing feature set, we could build machine learning models to recognize human activities.
 
-Please create new functions to fit your features and try other models.
-'''
-def model_training_and_evaluation_example(neighbours,features):
+def ModelTestingAndEval(neighbours,features):
+    
     info = np.empty(shape = (0,5))
     df_training = pd.read_csv('training_data.csv', header=None)
     df_testing = pd.read_csv('testing_data.csv', header=None)
@@ -143,8 +134,8 @@ def model_training_and_evaluation_example(neighbours,features):
     Y_train = df_training[features*3].values -1
     Y_test = df_testing[features*3].values -1
     
-    # Feature normalization for improving the performance of machine learning models. In this example code, 
-    # StandardScaler is used to scale original feature to be centered around zero. You could try other normalization methods.
+    # Feature normalization for improving the performance of machine learning models.  
+    # StandardScaler is used to scale original feature to be centered around zero. 
     scaler = preprocessing.StandardScaler().fit(X_train)
     X_train = scaler.transform(X_train)
     X_test = scaler.transform(X_test)
@@ -158,33 +149,26 @@ def model_training_and_evaluation_example(neighbours,features):
     #Build and test a Gaussian Naive Bayes learning algorithm
     info = np.concatenate((info, gaussianBuilderTester(X_train, Y_train,X_test,Y_test)),axis = 0)
     
-    # Build KNN classifier, in this example code
+    # Build KNN classifier algorithm and test neibours one above and below the specified amount, in this example code
     info = np.concatenate((info, KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours-1)), axis = 0)
     info = np.concatenate((info,KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours)),axis = 0)
     info = np.concatenate((info, KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours+1)), axis = 0)
     
-     # Another machine learning model: svm. In this example code, we use gridsearch to find the optimial classifier
+    # Another machine learning model: svm. In this example code, we use gridsearch to find the optimial classifier
     # It will take a long time to find the optimal classifier.
-    # the accuracy for SVM classifier with default parameters is 0.71, 
-    # which is worse than KNN. The reason may be parameters of svm classifier are not optimal.  
-    # Another reason may be we only use 9 features and they are not enough to build a good svm classifier. \
     info = np.concatenate((info, SVCBuilderTester(X_train,Y_train,X_test,Y_test)),axis = 0)
     infoData = pd.DataFrame(info)
     infoData.to_csv('info_data.csv', index=None, header=None)
-    print("done")
-def treeBuilderTester (X_train,Y_train,X_test,Y_test):
     
     
+def treeBuilderTester (X_train,Y_train,X_test,Y_test): 
     
     tree = DecisionTreeClassifier()
     tree.fit(X_train,Y_train)
     prediction = tree.predict(X_test)
-    #print('Accuracy of Decision Tree: ', accuracy_score(Y_test, prediction))
-    #print('Precision of Decision Tree: ', precision_score(Y_test, prediction,average='macro'))
-    #print('Recall of Decision Tree: ', recall_score(Y_test, prediction,average='macro'))
-    #print('F1 of Decision Tree: ', f1_score(Y_test, prediction,average='macro'))
-    #print(confusion_matrix(Y_test, prediction))
-    return arrayBuilder(Y_test, prediction, "Tree")
+    
+    #scorePrinter(Y_test,prediction,"Decision Tree")
+    return arrayBuilder(Y_test, prediction, "Decision Tree")
     
     
 def gaussianBuilderTester (X_train,Y_train,X_test,Y_test):
@@ -192,31 +176,26 @@ def gaussianBuilderTester (X_train,Y_train,X_test,Y_test):
     gauss = GaussianNB()
     gauss.fit(X_train,Y_train)
     prediction = gauss.predict(X_test)
-    #print('Accuracy of Gaussian: ', accuracy_score(Y_test, prediction))
-    #print('Precision of Gaussian: ', precision_score(Y_test, prediction,average='macro'))
-    #print('Recall of Gaussian: ', recall_score(Y_test, prediction,average='macro'))
-    #print('F1 of Gaussian: ', f1_score(Y_test, prediction,average='macro'))
-    #print(confusion_matrix(Y_test, prediction))
+    
+    #scorePrinter(Y_test,prediction,"Gauss")
     return arrayBuilder(Y_test,prediction, "Gauss")
     
 def KNNBuilderTester(X_train,Y_train,X_test,Y_test,neighbours):
+    
     knn = KNeighborsClassifier(n_neighbors=neighbours)
     knn.fit(X_train, Y_train)
 
     # Evaluation. when we train a machine learning model on training set, we should evaluate its performance on testing set.
-    # We could evaluate the model by different metrics. Firstly, we could calculate the classification accuracy. In this example
-    # code, when n_neighbors is set to 4, the accuracy achieves 0.757.
+    # We could evaluate the model by different metrics. Firstly, we could calculate the classification accuracy. 
     y_pred = knn.predict(X_test)
     
-    #print('Accuracy of KNN ',neighbours,' neighbours: ', accuracy_score(Y_test, y_pred))
-    #print('Precision of KNN: ', precision_score(Y_test, y_pred,average='macro'))
-    #print('Recall of KNN: ', recall_score(Y_test, y_pred,average='macro'))
-    #print('F1 of KNN: ', f1_score(Y_test, y_pred,average='macro'))
-    # We could use confusion matrix to view the classification for each activity.
-    #print(confusion_matrix(Y_test, y_pred))
+    
+    
+    scorePrinter(Y_test,y_pred,"KNN")
     return arrayBuilder(Y_test,y_pred, "KNN")
     
 def SVCBuilderTester(X_train,Y_train,X_test,Y_test):
+    
     tuned_parameters = [{'kernel': ['rbf'], 'gamma': [1e-1,1e-2, 1e-3, 1e-4],
                      'C': [1e-3, 1e-2, 1e-1, 1, 10, 100, 100]},
                     {'kernel': ['linear'], 'C': [1e-3, 1e-2, 1e-1, 1, 10, 100]}]
@@ -224,16 +203,23 @@ def SVCBuilderTester(X_train,Y_train,X_test,Y_test):
     grid_obj  = GridSearchCV(SVC(), tuned_parameters, cv=10, scoring=acc_scorer)
     grid_obj  = grid_obj .fit(X_train, Y_train)
     clf = grid_obj.best_estimator_
+    #these have created the SVC 
     print('best clf:', clf)
     clf.fit(X_train, Y_train)
     Y_pred = clf.predict(X_test)
-    print('Accuracy of SVC: ', accuracy_score(Y_test, Y_pred))
-    #print('Precision of SVC: ', precision_score(Y_test, Y_pred, average='macro'))
-    #print('Recall of SVC: ', recall_score(Y_test, Y_pred, average='macro'))
-    #print('F1 of SVC: ', f1_score(Y_test, Y_pred, average='macro'))
-    #print(confusion_matrix(Y_test, Y_pred))
+    scorePrinter(Y_test,Y_pred,"SVC") #prints out the algorithm score model 
+    
     return arrayBuilder(Y_test,Y_pred, "SVC")
 
+def scorePrinter(Y_test, Y_pred, type):
+    
+    print('Accuracy of ',type,': ', accuracy_score(Y_test, Y_pred))
+    print('Precision of ',type,': ', precision_score(Y_test, Y_pred, average='macro'))
+    print('Recall of ',type,': ', recall_score(Y_test, Y_pred, average='macro'))
+    print('F1 of  ',type,': ', f1_score(Y_test, Y_pred, average='macro'))
+    print(confusion_matrix(Y_test, Y_pred))
+    #this takes the scores of the algortihm and prints them out
+    
 def arrayBuilder(Y_test,prediction, name):
     info = []
     info.append(name)
@@ -242,14 +228,15 @@ def arrayBuilder(Y_test,prediction, name):
     info.append(recall_score(Y_test, prediction,average='macro'))
     info.append(f1_score(Y_test, prediction,average='macro'))
     info = np.array([info])
-    print("done")
+    #the addition of scores to an array for the outputting to an excel sheet
     return info
 
 def reader(i):
+    #This takes a parameter i and finds the dataset_i.txt to open
     return pd.read_csv('dataset_' + str(i) + '.txt', sep=',', header=None)
 
 def shower(data,person, pos, tStart, tEnd, sectStart, sectEnd,dataType,plot):    
-    activity =  {
+    activity =  { #This defines what activity the participant was performing
         1: "Sitting",
         2: "Lying", 
         3: "Standing", 
@@ -265,6 +252,7 @@ def shower(data,person, pos, tStart, tEnd, sectStart, sectEnd,dataType,plot):
         13: "Jumping Rope",    
     }.get(pos) 
     plot.set_title('%s Data of person %ds Chest while %s from time %d-%d:'%(dataType,person,activity,tStart,tEnd))
+    #here the title of the plot is made to display all neccesary info about the data
     return data[tStart:tEnd , sectStart:sectEnd]
     
 
@@ -272,13 +260,8 @@ def shower(data,person, pos, tStart, tEnd, sectStart, sectEnd,dataType,plot):
 
 if __name__ == '__main__':
     
-    #data_visulization(1,1,6,9,9,12)
-    #data_visulization(2,2,6,9,9,12)
+    data_visulization(1,1,6,9,9,12)
+    data_visulization(2,2,6,9,9,12)
     
-    feature_engineering_example(4)
-    #feature_engineering_example(3)
-    #feature_engineering_example(4)
-    #feature_engineering_example(5)
-    #feature_engineering_example(6)
-    #model_training_and_evaluation_example(3,2)
-    #model_training_and_evaluation_example(4)
+    DatasetCreation(6)
+    
